@@ -38,7 +38,11 @@ function localApiGuard(): Plugin {
   }
 }
 
+// GitHub Pages serves the static build under /<repo>/; the workflow sets LAB_BASE. Local dev and serve.py use "/".
+const base = process.env.LAB_BASE ?? "/"
+
 export default defineConfig({
+  base,
   plugins: [react(), tailwindcss(), localApiGuard()],
   resolve: { alias: { "@lab": path.resolve(import.meta.dirname, "src/lab"), "@": path.resolve(import.meta.dirname, "src") } },
   server: {

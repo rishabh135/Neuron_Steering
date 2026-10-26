@@ -12,6 +12,10 @@ Added
 - `scripts/build_lab_data.py`, `scripts/build_icons.mjs` generators; tests: `tests/test_static_ui.py`, `test_dev_launcher.py`, `test_lab_data.py`, `ui/src/lab/lab.test.ts`, `tests/ui_browser_check.py`, `tests/artifact_browser_check.py`.
 - Docs: `docs/UI_DESIGN.md`, `docs/CLAUDE_ARTIFACT.md`, `docs/PERFORMANCE.md`, `THIRD_PARTY_LICENSES.md`.
 
+Added (GitHub Pages)
+- `.github/workflows/pages.yml`: builds the static lab (`LAB_BASE`, `VITE_STATIC=1`: no API, illustration plus JSON import), the single-file page and a `404.html` route fallback, and deploys to GitHub Pages. `ui/vite.config.ts` honours `LAB_BASE`; chapter routes honour the base path.
+- README: author line and the build summary and verification steps.
+
 Changed
 - README: React lab section, repository map, commands.
 

@@ -15,9 +15,10 @@ import { APP_KIT } from "./kit"
 import { Search } from "./Search"
 import { Button } from "@/components/ui/button"
 
-const pathFor = (i: number) => `/chapter/${CHAPTERS[i].id}`
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "") // "" locally, "/neuron_abliteration" on GitHub Pages
+const pathFor = (i: number) => `${BASE}/chapter/${CHAPTERS[i].id}`
 const indexFromPath = () => {
-  const m = location.pathname.match(/^\/chapter\/([a-z]+)\/?$/)
+  const m = location.pathname.slice(BASE.length).match(/^\/chapter\/([a-z]+)\/?$/)
   const i = m ? CHAPTERS.findIndex((c) => c.id === m[1]) : 0
   return i < 0 ? 0 : i
 }
@@ -113,9 +114,10 @@ function Shell() {
   )
 }
 
+// The static GitHub Pages build (VITE_STATIC) has no API behind it: it behaves like the portable page (illustration + JSON import).
 export function App() {
   return (
-    <LabProvider api={api} documentTheme>
+    <LabProvider api={import.meta.env.VITE_STATIC ? null : api} documentTheme>
       <KitProvider kit={APP_KIT}>
         <SourceProvider><Shell /></SourceProvider>
       </KitProvider>

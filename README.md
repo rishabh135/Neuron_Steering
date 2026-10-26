@@ -1,5 +1,7 @@
 # Qwen Neuron Lab
 
+**Authored by Rishabh Gupta, Sr. ML Engineer, Yahoo.**
+
 A reproducible local investigation of a set of user-supplied neuron recipes for **Qwen/Qwen3.5-4B**: does adding a constant to a few named MLP neurons change how the model answers the same prompt, and does that change survive a port to quantized llama.cpp models?
 
 > **Not abliteration.** Despite the repository name, this project does *activation steering*: a constant is added to chosen MLP activations at inference time. No weights are edited and no direction is projected out. Every recipe name (sarcasm, sycophancy, "evil", ...) is the supplier's hypothesis, not a finding.
@@ -73,6 +75,46 @@ python3 serve.py --ui-dir ui/dist --backend reference
 Portable copy for Claude.ai (React only, no network, imports measured runs): `node scripts/build_artifact.mjs` writes `artifacts/NeuronSteeringArtifact.tsx`; see `docs/CLAUDE_ARTIFACT.md` for how to paste it and what was not verified. Measured numbers for this Mac: `docs/PERFORMANCE.md`.
 
 Checks: `python3 -m unittest discover -s tests -v` (includes static serving, launcher and generated-data tests), `npm --prefix ui test` (formulas, run validation, contrast), `tests/ui_browser_check.py` and `tests/artifact_browser_check.py` (Playwright; Chrome and Firefox). Regenerate verified source references and model facts with `python3 scripts/build_lab_data.py`.
+
+## React lab: build summary and verification steps
+
+Summary of the "One Prompt. Different Paths." build, written from what was actually run on the author's M4 Pro (26 October 2026). Details: `docs/UI_DESIGN.md`, `docs/CLAUDE_ARTIFACT.md`, `docs/PERFORMANCE.md`, `CHANGELOG.md`.
+
+### What you get
+
+- **Local app** in `ui/`: React 19, TypeScript, Vite 8 and Tailwind 4, with shadcn components, beUI animated tabs and number, and Motion. Chapters run through an Embla carousel with one panel mounted at a time. It also has Ctrl/Cmd+K search, presentation mode, a light/dark/system switch and a reduce-motion switch. A three.js 3D layer view loads only when opened; the 2D map is complete without it.
+- **Launcher and server:** the four commands above work, including `scripts/dev.py` for the dev UI. `serve.py --ui-dir ui/dist` serves the build with route refresh, and the old page stays at `/` by default and at `/legacy` otherwise. The Host/Origin checks are kept; Vite refuses anything that is not a same-origin request from its own page before proxying `/api`.
+- **Portable artifact:** `artifacts/NeuronSteeringArtifact.tsx` imports only `react`. `node scripts/build_artifact.mjs` regenerates it from the same chapters and theme the app uses. A private Claude Artifact copy (an HTML build of the same component) was published by the author; Export JSON there also shows the JSON in a box to copy, because the viewer blocks downloads.
+- **GitHub Pages:** `.github/workflows/pages.yml` builds the lab as a static site (illustration plus JSON import, no API) and deploys it to https://rishabh135.github.io/neuron_abliteration/ , with the single-file page at `/standalone.html`. A repository admin must set **Settings > Pages > Source: GitHub Actions** once. A page refresh on a chapter route is served through `404.html`, so the browser console shows one expected 404 on refresh.
+- **Docs:** `docs/UI_DESIGN.md` (component and library decision tables, including Remotion's licence limits), `docs/CLAUDE_ARTIFACT.md` (how to paste the `.tsx` into Claude.ai and what to check), `docs/PERFORMANCE.md`, `CHANGELOG.md`, `THIRD_PARTY_LICENSES.md`, and 16 screenshots in `docs/screenshots/`.
+
+### Checked
+
+- **Tests:** 52 Python tests pass (1 skipped), 21 TypeScript tests pass, and the build and `tsc` are clean.
+- **Browser checks:** 116 checks passed in Chrome and in Firefox, and the generated artifact page passed in both. They covered every chapter, JSON import and export, a bad file keeping the current run, theme and reduced motion, keyboard use, widths 390, 768, 1024, 1440 and 1920, a 720 px stand-in for 200% zoom, and 44 px touch targets.
+- **Live runs:** the reference backend (BF16 on MPS) and the llama.cpp Q4_K_M backend each answered a real comparison through the Vite proxy and rendered in the UI.
+- The checks caught three bugs, now fixed: a CSP block on inlined fonts, focus lost after closing a dialog, and the carousel hijacking arrow keys inside sliders.
+
+### Measured on this Mac
+
+| | Reference backend (BF16, MPS) |
+| --- | --- |
+| Model load, first request | 23.4 s |
+| Decode rate | 8.5-9.2 steps/s for the 3-row batch |
+| Physical footprint | about 9.7 GB |
+
+The 8.5-9.2 steps/s is well below the earlier 15.7 recorded in the status section above; the gap was not investigated. The llama.cpp port took 13.1 s for a 96-token comparison. See `docs/PERFORMANCE.md`.
+
+### Not verified or not built
+
+- **Not run:** the real Claude.ai preview, Safari, a screen reader, real touch hardware, and any frame-rate measurement.
+- **Not built:** editable neuron doses (no backend path or validation exists), streaming (the server returns completed JSON), measured activation heatmaps, MP4 export, and a 3D view inside the portable artifact.
+
+### Next steps
+
+1. Run `python3 scripts/dev.py --backend illustration` and walk through the eight chapters.
+2. Paste `artifacts/NeuronSteeringArtifact.tsx` into a new Claude.ai React artifact, follow the checklist in `docs/CLAUDE_ARTIFACT.md`, and record what the preview shows.
+3. Enable GitHub Pages (Source: GitHub Actions) and open the deployed URL above.
 
 ## Reproduce on an Apple Silicon Mac
 
