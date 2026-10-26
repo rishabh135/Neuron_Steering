@@ -1,0 +1,47 @@
+{
+  "audit_date": "2026-10-25",
+  "timezone": "America/Los_Angeles",
+  "model": "Qwen/Qwen3.5-4B",
+  "architecture": {
+    "layers": 32,
+    "hidden_size": 2560,
+    "intermediate_size": 9216
+  },
+  "explorer": {
+    "repository": "lyramakesmusic/neuron-explorer",
+    "commit": "f79b2196e29aacbad89684938baac8d97b172fd1",
+    "files": [
+      "README.md",
+      "explorer/runtime.py",
+      "explorer/server.py",
+      "sweep/neuron_stats.py",
+      "research_log.md"
+    ]
+  },
+  "llama": {
+    "repository": "ggml-org/llama.cpp",
+    "commit": "d854d98bae598388ecea1ed84396587e5edc326d",
+    "files": [
+      "src/models/qwen35.cpp",
+      "src/llama-adapter.cpp",
+      "common/common.cpp",
+      "common/arg.cpp",
+      "gguf-py/gguf/gguf_writer.py",
+      "gguf-py/gguf/gguf_reader.py"
+    ]
+  },
+  "established": [
+    "Additive down_proj input hook exists",
+    "Multi-neuron greedy comparison exists",
+    "Calibration excludes measurement at position 0",
+    "Qwen3.5 applies build_cvec after MLP residual addition",
+    "Audited direction.L maps to zero-based layer L and excludes layer 0"
+  ],
+  "not_established": [
+    "Reproduction of user-supplied personality labels",
+    "M4 memory or latency",
+    "Quantized behavioral equivalence",
+    "Actual browser rendering"
+  ],
+  "model_revision_policy": "Resolve a concrete Hugging Face commit once during setup and reuse the saved lock"
+}

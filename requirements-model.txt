@@ -1,0 +1,9 @@
+# The pinned upstream repository's uv.lock is the reference environment.
+# These minimal dependencies avoid its sweep, embedding, and agent services.
+torch
+transformers
+safetensors
+numpy
+accelerate
+huggingface_hub
+gguf
