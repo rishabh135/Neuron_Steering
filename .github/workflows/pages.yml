@@ -1,0 +1,54 @@
+# Builds the React lab as a static site (illustration + JSON import; no API) and deploys it to GitHub Pages.
+# One-time setup by a repository admin: Settings > Pages > Build and deployment > Source: "GitHub Actions".
+name: Deploy lab to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm --prefix ui ci
+      - run: npm --prefix ui test
+      - name: Build static site
+        env:
+          LAB_BASE: /${{ github.event.repository.name }}/
+          VITE_STATIC: "1"
+        run: npm --prefix ui run build
+      - name: Portable single-file page and SPA fallback
+        run: |
+          node scripts/build_artifact.mjs
+          cp artifacts/dist/neuron-steering.html ui/dist/standalone.html
+          cp ui/dist/index.html ui/dist/404.html   # chapter routes refresh into the app
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ui/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

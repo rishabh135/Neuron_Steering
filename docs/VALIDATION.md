@@ -57,3 +57,13 @@ The test invocation additionally placed the temporary official GGUF package on P
 8. Use the blinded scoring rubric in EVALUATION.md before claiming reproduction.
 
 The local software checks establish implementation properties. They do not establish that the supplied behavioral claims reproduce.
+
+## React lab verification (26 October 2026, M4 Pro, macOS 26.7.1)
+
+Run on this Mac:
+- Python unit tests, `npm --prefix ui test` (formulas, run parsing, source index, theme contrast), `tsc --noEmit`, production build.
+- `tests/ui_browser_check.py` against `serve.py --ui-dir ui/dist`, Chrome (installed) and Firefox (Playwright build): every chapter, one active panel, heading focus, route refresh, JSON import/export round trip, failed-import handling, stale-result marking, intensity range, theme switch and persistence, reduced motion, keyboard behaviour inside sliders and inputs, Ctrl+K search, implementation dialog and focus return, layer inspector, widths 390/768/1024/1440/1920 and a 720 px viewport standing in for 200 % zoom at 1440, 44 px targets, console errors.
+- `tests/artifact_browser_check.py` on the generated HTML (Chrome and Firefox, 390 and 1440 px).
+- Live runs: the reference backend (BF16, MPS) and the llama.cpp Q4_K_M backend answered real comparisons through the Vite proxy and rendered in the UI; see `docs/PERFORMANCE.md`.
+
+Not run: the actual Claude.ai preview; Safari; a screen reader; a real touch device (only emulated touch); a measured frame rate; a behavioural evaluation of any recipe (unchanged from above).

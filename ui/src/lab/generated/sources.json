@@ -1,0 +1,370 @@
+{
+ "hook-register": {
+  "id": "hook-register",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   68,
+   68
+  ],
+  "shows": "A forward pre-hook sits on every layer's down_proj.",
+  "snippet": "                layer.mlp.down_proj.register_forward_pre_hook(self._hook(i))",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L68-L68",
+  "pinned": true
+ },
+ "hook-add": {
+  "id": "hook-add",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   80,
+   104
+  ],
+  "shows": "The hook receives the down_proj input (the gated activation z) and adds the dose to coordinate n.",
+  "snippet": "    def _hook(self, i):\n        def hook(mod, inp):\n            h = inp[0]\n            if self._capture_full is not None:\n                self._capture_full[i] = h[0].float().cpu()  # [tokens, inter]\n            if self._capture_all is not None:\n                a = h[:, self._capture_from:].float().flatten(0, 1)  # [tokens, inter]\n                mx, amx = a.max(0)\n                mn, amn = a.min(0)\n                self._capture_all[i] = (mx.cpu(), amx.cpu(), mn.cpu(), amn.cpu())\n            if self._read is not None and self._read[0] == i:\n                n = self._read[1]\n                self._seen[\"act\"] = h[0, :, n].float().cpu()\n            mine = [p for p in self._push if p[0] == i] if self._push else []\n            if mine:\n                h = h.clone()\n                for _, n, mode, vals in mine:\n                    if n is None:  # the whole layer's MLP (multiply only)\n                        h = h * vals[:, None, None].to(h.dtype)\n                    elif mode == \"mul\":\n                        h[:, :, n] = h[:, :, n] * vals[:, None].to(h.dtype)\n                    else:\n                        h[:, :, n] = h[:, :, n] + vals[:, None].to(h.dtype)\n                return (h,)\n        return hook",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L80-L104",
+  "pinned": true
+ },
+ "push-unit": {
+  "id": "push-unit",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   235,
+   246
+  ],
+  "shows": "alpha = row_sign * dose * R_L / ||W_down[:, n]||, with row signs (+1, 0, -1).",
+  "snippet": "    def _push_entry(self, layer, n, dose, mode, rows):\n        \"\"\"One neuron's push for the down_proj hook, per batch row: rows holds +1 (pushed), 0 (left alone) or -1\n        (pushed the other way). add doses are in units of the layer's median residual norm along the neuron's down\n        column; mul doses multiply the activation (left alone = x1, the other way = x -dose).\"\"\"\n        if n is None and mode != \"mul\":\n            raise ValueError(\"a whole-layer MLP push must be mode 'mul' (e.g. dose 0 to ablate)\")\n        if mode == \"mul\":\n            vals = [dose if r > 0 else 1.0 if r == 0 else -dose for r in rows]\n        else:\n            unit = self.layer_resid_p50(layer) / float(self.down_col(layer, n).norm())\n            vals = [r * dose * unit for r in rows]\n        return (layer, n, mode, torch.tensor(vals, device=self.dev))",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L235-L246",
+  "pinned": true
+ },
+ "resid-median": {
+  "id": "resid-median",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   132,
+   146
+  ],
+  "shows": "R_L: median residual norm of one fixed, unsteered reference passage.",
+  "snippet": "    def layer_resid_p50(self, layer):\n        if layer in self.resid_p50:\n            return self.resid_p50[layer]\n        path = os.path.join(self.stats_dir, f\"q35-4b_L{layer}.npz\")\n        if os.path.exists(path):\n            v = float(np.load(path)[\"resid_norm_q10_50_90\"][1])\n        else:\n            ids = self.tok(REFERENCE_TEXT, return_tensors=\"pt\").input_ids.to(self.dev)\n            self._seen[\"want_resid\"] = layer\n            with torch.inference_mode():\n                self.lm(input_ids=ids, use_cache=False)\n            self._seen.pop(\"want_resid\")\n            v = float(self._seen.pop(\"resid\").median())\n        self.resid_p50[layer] = v\n        return v",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L132-L146",
+  "pinned": true
+ },
+ "resid-skip-first": {
+  "id": "resid-skip-first",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   125,
+   130
+  ],
+  "shows": "The calibration measurement keeps positions >= 1 (h[0, 1:]); position 0 is still in the forward pass.",
+  "snippet": "    def _resid_hook(self, i):\n        def hook(mod, inp, out):\n            if self._seen.get(\"want_resid\") == i:\n                h = out[0] if isinstance(out, tuple) else out\n                self._seen[\"resid\"] = h[0, 1:].float().norm(dim=-1).cpu()\n        return hook",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L125-L130",
+  "pinned": true
+ },
+ "reference-text": {
+  "id": "reference-text",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   19,
+   19
+  ],
+  "shows": "The fixed calibration passage.",
+  "snippet": "REFERENCE_TEXT = (",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L19-L19",
+  "pinned": true
+ },
+ "down-column": {
+  "id": "down-column",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   148,
+   149
+  ],
+  "shows": "w = W_down[L][:, n], the neuron's output direction.",
+  "snippet": "    def down_col(self, layer, n):\n        return self.lm.layers[layer].mlp.down_proj.weight[:, n].float()",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L148-L149",
+  "pinned": true
+ },
+ "chat-template": {
+  "id": "chat-template",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   155,
+   157
+  ],
+  "shows": "One user turn, generation prompt added, thinking disabled.",
+  "snippet": "    def messages_ids(self, messages):\n        enc = self.tok.apply_chat_template(messages, add_generation_prompt=True, enable_thinking=False, tokenize=True)\n        return list(enc[\"input_ids\"] if hasattr(enc, \"keys\") else enc)",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L155-L157",
+  "pinned": true
+ },
+ "steer-rows": {
+  "id": "steer-rows",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   165,
+   174
+  ],
+  "shows": "Three batch rows: +dose, unsteered, -dose, from one call.",
+  "snippet": "    def steer_multi(self, pushes, rows_messages, max_new=200, cancel=None):\n        \"\"\"steer_stream for any number of neurons at once: pushes = [(layer, n, dose, mode)], all applied together.\n        Each is reversed in row 2 the same way a single neuron is (add: -dose; mul: x -dose).\"\"\"\n        self.ensure_loaded()\n        with self.lock:\n            if cancel is not None and cancel.is_set():\n                yield None, None\n                return\n            try:\n                push = [self._push_entry(layer, n, dose, mode, (1, 0, -1)) for layer, n, dose, mode in pushes]",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L165-L174",
+  "pinned": true
+ },
+ "greedy-step": {
+  "id": "greedy-step",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   190,
+   190
+  ],
+  "shows": "Greedy decoding: the next token is the argmax of the logits.",
+  "snippet": "                        nxt = out.logits[:, -1].argmax(-1)",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L190-L190",
+  "pinned": true
+ },
+ "next-logprobs": {
+  "id": "next-logprobs",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   277,
+   300
+  ],
+  "shows": "Next-token log-probabilities on an identical prompt, with and without the push.",
+  "snippet": "    def next_logprobs(self, text, chat=True, prefix=\"\", pushes=None, heads=None):\n        \"\"\"Log-probabilities of the next token after `text` (as a user turn when chat=True, so the next token opens the\n        reply) followed by `prefix`, as a [vocab] tensor. With pushes / heads (same units as read()) it also returns\n        the same distribution under that intervention: (base, intervened or None).\"\"\"\n        self.ensure_loaded()\n        ids = self.chat_ids(text) if chat else self.tok(text).input_ids\n        if prefix:\n            ids = ids + self.tok(prefix, add_special_tokens=False).input_ids\n\n        def run(push, hd):\n            with self.lock:\n                self._push, self._heads = push, hd\n                try:\n                    with torch.inference_mode():\n                        out = self.model(input_ids=torch.tensor([ids], device=self.dev), use_cache=False, logits_to_keep=1)\n                finally:\n                    self._push = self._heads = None\n                return torch.log_softmax(out.logits[0, -1].float(), -1).cpu()\n\n        base = run(None, None)\n        if not pushes and not heads:\n            return base, None\n        push = [self._push_entry(pl, pn, d, m, (1,)) for pl, pn, d, m in pushes or []] or None\n        return base, run(push, list(heads) if heads else None)",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L277-L300",
+  "pinned": true
+ },
+ "read-activation": {
+  "id": "read-activation",
+  "repo": "explorer",
+  "file": "explorer/runtime.py",
+  "lines": [
+   248,
+   275
+  ],
+  "shows": "Reads z[n] at the down_proj pre-hook, before that hook adds anything.",
+  "snippet": "    def read(self, layer, n, text, chat=True, pushes=None, heads=None):\n        \"\"\"Per-token activation of neuron n at `layer` on `text` (as a user turn when chat=True), optionally with other\n        neurons pushed at the same time: pushes = [(layer, n, dose, mode)], the same units as steering (n None = the\n        layer's whole MLP, mul only), and attention heads scaled: heads = [(layer, head, scale)], head None = all heads,\n        scale 0 = ablated. Only earlier layers can move the read (a same-layer MLP push lands after the capture; a\n        same-layer head change lands before it).\"\"\"\n        self.ensure_loaded()\n        with self.lock:\n            if chat:\n                ids = self.chat_ids(text)\n            else:\n                ids = self.tok(text).input_ids\n            self._read = (layer, n)\n            self._push = [self._push_entry(pl, pn, d, m, (1,)) for pl, pn, d, m in pushes or []] or None\n            self._heads = list(heads) or None if heads else None\n            try:\n                with torch.inference_mode():\n                    self.lm(input_ids=torch.tensor([ids], device=self.dev), use_cache=False)\n            finally:\n                self._read = None\n                self._push = None\n                self._heads = None\n            act = self._seen.pop(\"act\").tolist()\n        units = []\n        for text, idx in self.token_units(ids):\n            vals = [act[i] for i in idx]\n            units.append({\"text\": text, \"act\": max(vals, key=abs), \"pieces\": vals})\n        return {\"units\": units}",
+  "file_sha256": "f882e82863d203a4b7bf90471df313b82a6490b594e5bc504adf1b8dd3eaee1e",
+  "rev": "f79b2196e29aacbad89684938baac8d97b172fd1",
+  "url": "https://github.com/lyramakesmusic/neuron-explorer/blob/f79b2196e29aacbad89684938baac8d97b172fd1/explorer/runtime.py#L248-L275",
+  "pinned": true
+ },
+ "lab-pushes": {
+  "id": "lab-pushes",
+  "repo": "lab",
+  "file": "lab/core.py",
+  "lines": [
+   67,
+   71
+  ],
+  "shows": "Signed preset dose times intensity; intensity 1.00 is the exact preset.",
+  "snippet": "def pushes_for(request):\n    neurons = presets()[request[\"preset\"]][\"neurons\"]\n    if request.get(\"component\") is not None:\n        neurons = [neurons[request[\"component\"]]]\n    return [(p[\"layer\"], p[\"neuron\"], p[\"dose\"] * request[\"intensity\"], \"add\") for p in neurons]",
+  "file_sha256": "198c5cf40dce314a92683060715ce8115797324927ab2a6bce15fdfc29d97352",
+  "rev": "this repository",
+  "url": null,
+  "pinned": false,
+  "note": "Line numbers are for the working tree; run this script again after editing."
+ },
+ "lab-validate": {
+  "id": "lab-validate",
+  "repo": "lab",
+  "file": "lab/core.py",
+  "lines": [
+   39,
+   64
+  ],
+  "shows": "The validated request: preset, intensity range, max_new, optional component.",
+  "snippet": "def validate_request(body):\n    if not isinstance(body, dict):\n        raise ValueError(\"Expected a JSON object.\")\n    prompt = body.get(\"prompt\", \"\")\n    if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > LIMITS[\"prompt_chars\"]:\n        raise ValueError(\"Prompt must contain 1 to 4,000 characters.\")\n    preset = body.get(\"preset\", \"sarcasm\")\n    if not isinstance(preset, str) or preset not in presets():\n        raise ValueError(\"Unknown preset.\")\n    intensity = body.get(\"intensity\", LIMITS[\"intensity_default\"])\n    if isinstance(intensity, bool) or not isinstance(intensity, (int, float)):\n        raise ValueError(\"Intensity must be a number.\")\n    if not math.isfinite(intensity) or not LIMITS[\"intensity_min\"] <= intensity <= LIMITS[\"intensity_max\"]:\n        raise ValueError(\"Intensity must be between 0 and 1.25.\")\n    max_new = body.get(\"max_new\", LIMITS[\"max_new_default\"])\n    if isinstance(max_new, bool) or not isinstance(max_new, int) or not LIMITS[\"max_new_min\"] <= max_new <= LIMITS[\"max_new_max\"]:\n        raise ValueError(\"max_new must be an integer between 1 and 512.\")\n    request = {\"prompt\": prompt, \"preset\": preset, \"intensity\": float(intensity), \"max_new\": max_new}\n    # Optional: run one neuron of a preset alone, with its signed dose exactly as listed in presets.json.\n    component = body.get(\"component\")\n    if component is not None:\n        if isinstance(component, bool) or not isinstance(component, int) or \\\n                not 0 <= component < len(presets()[preset][\"neurons\"]):\n            raise ValueError(\"component must be a zero-based index into the preset's neurons.\")\n        request[\"component\"] = component\n    return request",
+  "file_sha256": "198c5cf40dce314a92683060715ce8115797324927ab2a6bce15fdfc29d97352",
+  "rev": "this repository",
+  "url": null,
+  "pinned": false,
+  "note": "Line numbers are for the working tree; run this script again after editing."
+ },
+ "lab-calibration": {
+  "id": "lab-calibration",
+  "repo": "lab",
+  "file": "lab/reference.py",
+  "lines": [
+   101,
+   117
+  ],
+  "shows": "Calibrates before any hook is active and records R_L, ||w||, alpha and the write norm.",
+  "snippet": "    def calibration(self, pushes):\n        self.ensure_loaded()\n        rows = []\n        with self.rt.lock:  # serialize with every other runtime user; calibration must see no active hooks\n            if self.rt._push is not None or self.rt._heads is not None:\n                raise RuntimeError(\"A steering hook is active; refusing to calibrate on a steered model.\")\n            for layer, neuron, dose, _ in pushes:\n                r = float(self.rt.layer_resid_p50(layer))\n                norm = float(self.rt.down_col(layer, neuron).detach().norm())\n                if not math.isfinite(norm) or norm <= 1e-12 or not math.isfinite(r) or r <= 0:\n                    raise RuntimeError(\"Invalid down-projection column norm or residual median.\")\n                stats = ROOT / \"calibration_stats\" / f\"q35-4b_L{layer}.npz\"\n                rows.append({\"layer\": layer, \"neuron\": neuron, \"dose\": dose, \"resid_median\": r,\n                             \"calibration_source\": (\"stats:\" + file_sha(stats)) if stats.exists() else \"REFERENCE_TEXT\",\n                             \"down_column_norm\": norm, \"activation_addition\": dose * r / norm,\n                             \"individual_write_norm\": abs(dose) * r})\n        return rows",
+  "file_sha256": "c6e5cf4a57473a8783d894902a2fa4249ae0b4a5a304ade683a69a276fafcf48",
+  "rev": "this repository",
+  "url": null,
+  "pinned": false,
+  "note": "Line numbers are for the working tree; run this script again after editing."
+ },
+ "lab-compare-reference": {
+  "id": "lab-compare-reference",
+  "repo": "lab",
+  "file": "lab/reference.py",
+  "lines": [
+   156,
+   195
+  ],
+  "shows": "The reference comparison: generation, first-token diagnostics, forks, activation reads.",
+  "snippet": "    def compare(self, request):\n        loading = self.rt is None\n        self.ensure_loaded()\n        pushes = pushes_for(request)\n        reverse_pushes = [(l, n, -d, m) for l, n, d, m in pushes]\n        calibration = self.calibration(pushes)  # always calibrate before enabling any steering\n        timings = {\"model_load_seconds_this_request\": self.load_seconds if loading else 0.0}\n        texts, ids, complete, timings[\"generation_seconds\"] = self.generate(pushes, request[\"prompt\"], request[\"max_new\"])\n        tok = self.rt.tok\n        prompt_ids = self.rt.chat_ids(request[\"prompt\"])\n        eos = tok.convert_tokens_to_ids(\"<|im_end|>\")\n        at = lambda seq, k: seq[k] if k < len(seq) else eos  # a row shorter than max_new stopped with <|im_end|>\n\n        started = time.monotonic()\n        base, forward = self.rt.next_logprobs(request[\"prompt\"], pushes=pushes)\n        _, reverse = self.rt.next_logprobs(request[\"prompt\"], pushes=reverse_pushes)\n        # Probabilities use the exact same prompt prefix, before any reply token diverges.\n        diagnostics = {\"scope\": \"first reply token; identical full prompt prefix\",\n                       \"tokens\": self.token_rows([base, forward, reverse]),\n                       \"kl_base_to_forward_nats\": kl_nats(base, forward),\n                       \"kl_base_to_reverse_nats\": kl_nats(base, reverse)}\n        # The fork: the first generated position where a branch's greedy token differs from baseline. Both\n        # distributions there are measured on the identical teacher-forced prefix prompt + common tokens.\n        forks = {}\n        for name, alt_pushes in [(\"forward\", pushes), (\"reverse\", reverse_pushes)]:\n            alt = ids[BRANCH_ROWS[name]]\n            k = first_token_difference(ids[1], alt)\n            fork = {\"first_token_difference\": k}\n            if k is not None and all(complete):\n                prefix = prompt_ids + ids[1][:k]\n                lp_base, lp_alt = self.logprobs_ids(prefix, []), self.logprobs_ids(prefix, alt_pushes)\n                fork.update({\"common_prefix_tokens\": k,\n                             \"common_prefix_text\": tok.decode(ids[1][:k], skip_special_tokens=True),\n                             \"baseline_token\": tok.decode([at(ids[1], k)]), \"branch_token\": tok.decode([at(alt, k)]),\n                             \"tokens\": self.token_rows([lp_base, lp_alt]),\n                             \"kl_base_to_branch_nats\": kl_nats(lp_base, lp_alt),\n                             \"single_row_argmax_matches_batch\": [int(lp_base.argmax()) == at(ids[1], k),\n                                                                 int(lp_alt.argmax()) == at(alt, k)]})\n            forks[name] = fork\n        diagnostics[\"forks\"] = forks",
+  "file_sha256": "c6e5cf4a57473a8783d894902a2fa4249ae0b4a5a304ade683a69a276fafcf48",
+  "rev": "this repository",
+  "url": null,
+  "pinned": false,
+  "note": "Line numbers are for the working tree; run this script again after editing."
+ },
+ "lab-llama-command": {
+  "id": "lab-llama-command",
+  "repo": "lab",
+  "file": "lab/llama_backend.py",
+  "lines": [
+   56,
+   59
+  ],
+  "shows": "The llama backend scales the exported vector by sign x intensity, layers 1 to 31.",
+  "snippet": "            scale = sign * request[\"intensity\"]\n            if scale:\n                command += [\"--control-vector-scaled\", f\"{vector}:{scale}\",\n                            \"--control-vector-layer-range\", \"1\", \"31\"]",
+  "file_sha256": "a4f468256ebc160b69672c8783dd0207bf7a7117b9a993e0d4e86f6981e0e30b",
+  "rev": "this repository",
+  "url": null,
+  "pinned": false,
+  "note": "Line numbers are for the working tree; run this script again after editing."
+ },
+ "lab-server-compare": {
+  "id": "lab-server-compare",
+  "repo": "lab",
+  "file": "serve.py",
+  "lines": [
+   29,
+   45
+  ],
+  "shows": "The API handler: validate, run one backend, save the run JSON.",
+  "snippet": "    def compare(self, body):\n        request = validate_request(body)\n        if self.backend is None:\n            raise ValueError(\"Illustration mode does not generate model replies. Start the reference or llama backend.\")\n        if not self.busy.acquire(blocking=False):\n            raise BlockingIOError(\"A comparison is running. Please wait for it to finish.\")\n        try:\n            started = time.monotonic()\n            result = self.backend.compare(request)\n            result.update({\"schema_version\": 1, \"run_id\": uuid.uuid4().hex,\n                           \"created_at\": datetime.now(timezone.utc).isoformat(), \"request\": request,\n                           \"elapsed_seconds\": time.monotonic() - started,\n                           \"metrics\": {k: text_metrics(result[k]) for k in [\"baseline\", \"forward\", \"reverse\"]},\n                           \"first_character_difference\": {k: first_character_difference(result[\"baseline\"], result[k])\n                                                          for k in [\"forward\", \"reverse\"]}})\n            atomic_json(ROOT / \"runs\" / (result[\"run_id\"] + \".json\"), result)\n            return result",
+  "file_sha256": "e97e1b5b3856169efd144beccf796b3509fcb938136d57459a57473023185b9f",
+  "rev": "this repository",
+  "url": null,
+  "pinned": false,
+  "note": "Line numbers are for the working tree; run this script again after editing."
+ },
+ "llama-cvec-call": {
+  "id": "llama-cvec-call",
+  "repo": "llama",
+  "file": "src/models/qwen35.cpp",
+  "lines": [
+   199,
+   203
+  ],
+  "shows": "llama.cpp adds the control vector after the FFN residual addition of layer il.",
+  "snippet": "        cur = ggml_add(ctx0, cur, ffn_residual);\n        cb(cur, \"post_ffn\", il);\n\n        cur = build_cvec(cur, il);\n        cb(cur, \"l_out\", il);",
+  "file_sha256": "7e4673de5708ce96602079941379417d0cd3d4010381dcb93192807929b6f9bc",
+  "rev": "d854d98bae598388ecea1ed84396587e5edc326d",
+  "url": "https://github.com/ggml-org/llama.cpp/blob/d854d98bae598388ecea1ed84396587e5edc326d/src/models/qwen35.cpp#L199-L203",
+  "pinned": true
+ },
+ "llama-cvec-apply": {
+  "id": "llama-cvec-apply",
+  "repo": "llama",
+  "file": "src/llama-adapter.cpp",
+  "lines": [
+   24,
+   30
+  ],
+  "shows": "A direction is added to the layer output with ggml_add.",
+  "snippet": "ggml_tensor * llama_adapter_cvec::apply_to(ggml_context * ctx, ggml_tensor * cur, int  il) const {\n    ggml_tensor * layer_dir = tensor_for(il);\n    if (layer_dir != nullptr) {\n        cur = ggml_add(ctx, cur, layer_dir);\n    }\n\n    return cur;",
+  "file_sha256": "1b8c87dabcdfdb1f8f663ac8802e943c581e984259a0154506c068902d544498",
+  "rev": "d854d98bae598388ecea1ed84396587e5edc326d",
+  "url": "https://github.com/ggml-org/llama.cpp/blob/d854d98bae598388ecea1ed84396587e5edc326d/src/llama-adapter.cpp#L24-L30",
+  "pinned": true
+ },
+ "llama-cvec-layer-start": {
+  "id": "llama-cvec-layer-start",
+  "repo": "llama",
+  "file": "common/common.cpp",
+  "lines": [
+   1460,
+   1460
+  ],
+  "shows": "The default start layer is 1; layer 0 is never steered.",
+  "snippet": "        if (params.control_vector_layer_start <= 0) params.control_vector_layer_start = 1;",
+  "file_sha256": "390aaf721efef2bd85c3d4348d50c980ef7b938a74ea19ccf628936c2035119f",
+  "rev": "d854d98bae598388ecea1ed84396587e5edc326d",
+  "url": "https://github.com/ggml-org/llama.cpp/blob/d854d98bae598388ecea1ed84396587e5edc326d/common/common.cpp#L1460-L1460",
+  "pinned": true
+ },
+ "llama-cvec-parse": {
+  "id": "llama-cvec-parse",
+  "repo": "llama",
+  "file": "common/common.cpp",
+  "lines": [
+   2011,
+   2023
+  ],
+  "shows": "direction.L maps to layer L (zero-based); direction.0 is rejected.",
+  "snippet": "        if (dotpos != std::string::npos && name.substr(0, dotpos) == \"direction\") {\n            try {\n                layer_idx = std::stoi(name.substr(dotpos + 1));\n            } catch (...) {\n                layer_idx = -1;\n            }\n        }\n        if (layer_idx < 0) {\n            COM_ERR(\"invalid/unparsable direction tensor layer index in %s\\n\", load_info.fname.c_str());\n            result.n_embd = -1;\n            break;\n        } else if (layer_idx == 0) {\n            COM_ERR(\"invalid (zero) direction tensor layer index in %s\\n\", load_info.fname.c_str());",
+  "file_sha256": "390aaf721efef2bd85c3d4348d50c980ef7b938a74ea19ccf628936c2035119f",
+  "rev": "d854d98bae598388ecea1ed84396587e5edc326d",
+  "url": "https://github.com/ggml-org/llama.cpp/blob/d854d98bae598388ecea1ed84396587e5edc326d/common/common.cpp#L2011-L2023",
+  "pinned": true
+ },
+ "hf-decoder-layer": {
+  "id": "hf-decoder-layer",
+  "repo": "transformers",
+  "file": "transformers/models/qwen3_5/modeling_qwen3_5.py",
+  "lines": [
+   847,
+   886
+  ],
+  "shows": "Per layer: RMSNorm, token mixer (full or linear attention), residual, RMSNorm, MLP, residual.",
+  "snippet": "class Qwen3_5DecoderLayer(GradientCheckpointingLayer):\n    def __init__(self, config: Qwen3_5TextConfig, layer_idx: int):\n        super().__init__()\n        self.hidden_size = config.hidden_size\n        self.block_type = config.layer_types[layer_idx]\n        if self.block_type == \"linear_attention\":\n            self.linear_attn = Qwen3_5GatedDeltaNet(config, layer_idx)\n        elif self.block_type == \"full_attention\":\n            self.self_attn = Qwen3_5Attention(config, layer_idx)\n        self.mlp = Qwen3_5MLP(config, config.intermediate_size)\n        self.input_layernorm = Qwen3_5RMSNorm(config.hidden_size, eps=config.rms_norm_eps)\n        self.post_attention_layernorm = Qwen3_5RMSNorm(config.hidden_size, eps=config.rms_norm_eps)\n\n    def forward(\n        self,\n        hidden_states: torch.Tensor,\n        position_embeddings: tuple[torch.Tensor, torch.Tensor],\n        attention_mask: torch.Tensor | None = None,\n        position_ids: torch.LongTensor | None = None,\n        past_key_values: Cache | None = None,\n        **kwargs: Unpack[TransformersKwargs],\n    ) -> torch.FloatTensor:\n        residual = hidden_states\n\n        hidden_states = self.input_layernorm(hidden_states)\n\n        # Token Mixer\n        if self.block_type == \"linear_attention\":\n            hidden_states = self.linear_attn(\n                hidden_states=hidden_states,\n                cache_params=past_key_values,\n                attention_mask=attention_mask,\n                **kwargs,\n            )\n        elif self.block_type == \"full_attention\":\n            # Self Attention\n            hidden_states, _ = self.self_attn(\n                hidden_states=hidden_states,\n                attention_mask=attention_mask,\n                position_ids=position_ids,",
+  "file_sha256": "b48635f7388fbfd1b214b8c19275f8c9854fd02c4f3a3376a2339b753a2a5457",
+  "rev": "transformers 5.20.1 (installed in the pinned uv environment)",
+  "url": null,
+  "pinned": false,
+  "note": "From the installed package; no GitHub revision was pinned for it."
+ },
+ "hf-mlp": {
+  "id": "hf-mlp",
+  "repo": "transformers",
+  "file": "transformers/models/qwen3_5/modeling_qwen3_5.py",
+  "lines": [
+   810,
+   823
+  ],
+  "shows": "MLP: down_proj(act_fn(gate_proj(x)) * up_proj(x)). The activation z is the input of down_proj.",
+  "snippet": "class Qwen3_5MLP(nn.Module):\n    def __init__(self, config: Qwen3_5Config, intermediate_size: int):\n        super().__init__()\n        self.config = config\n        self.hidden_size = config.hidden_size\n        self.intermediate_size = intermediate_size\n        self.gate_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)\n        self.up_proj = nn.Linear(self.hidden_size, self.intermediate_size, bias=False)\n        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)\n        self.act_fn = ACT2FN[config.hidden_act]\n\n    def forward(self, x):\n        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))\n        return down_proj",
+  "file_sha256": "b48635f7388fbfd1b214b8c19275f8c9854fd02c4f3a3376a2339b753a2a5457",
+  "rev": "transformers 5.20.1 (installed in the pinned uv environment)",
+  "url": null,
+  "pinned": false,
+  "note": "From the installed package; no GitHub revision was pinned for it."
+ }
+}

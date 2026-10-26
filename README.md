@@ -1,5 +1,7 @@
 # Qwen Neuron Lab
 
+**Authored by Rishabh Gupta, Sr. ML Engineer, Yahoo.**
+
 A reproducible local investigation of a set of user-supplied neuron recipes for **Qwen/Qwen3.5-4B**: does adding a constant to a few named MLP neurons change how the model answers the same prompt, and does that change survive a port to quantized llama.cpp models?
 
 > **Not abliteration.** Despite the repository name, this project does *activation steering*: a constant is added to chosen MLP activations at inference time. No weights are edited and no direction is projected out. Every recipe name (sarcasm, sycophancy, "evil", ...) is the supplier's hypothesis, not a finding.
@@ -53,6 +55,67 @@ open http://127.0.0.1:8792    # or open web/index.html directly from disk
 
 `web/index.html` is a single offline file (no CDNs, system fonts) with five stages: the experiment, the MLP mechanism, the token fork, the three replies, and provenance. Panels say "Measured" only when they show a real run; otherwise they are labelled toy or authored illustration. Import a run JSON, or a bundle from `scripts/make_bundle.py`, to present real results offline.
 
+## React lab: "One Prompt. Different Paths."
+
+An eight-chapter visual lab (Experiment, Inside the model, The intervention, The mathematics, Token divergence, Compare replies, Evidence and limits, Run on my Mac) built with React, TypeScript, Vite, Tailwind CSS 4, shadcn/ui, beUI, Motion and a lazy three.js layer view. It runs offline in illustrative mode, imports measured run JSON, and talks to the same `serve.py` API for live comparisons. Design, component and library decisions: `docs/UI_DESIGN.md`. Licences: `THIRD_PARTY_LICENSES.md`.
+
+```bash
+# Development UI (Vite on 5173, API on 8792, managed llama-server port 8081 kept free)
+python3 scripts/dev.py --backend illustration     # no model needed
+python3 scripts/dev.py --backend reference        # literal Hugging Face activation steering (use the upstream venv's python)
+python3 scripts/dev.py --backend llama --gguf models/gguf/Qwen3.5-4B-Q4_K_M.gguf   # resolved against ./cache when not found at the root
+
+# Production build served by Python (the original offline page stays at /legacy)
+npm --prefix ui run build
+python3 serve.py --ui-dir ui/dist --backend reference
+```
+
+`scripts/dev.py` uses the active Python interpreter, binds `127.0.0.1`, reports a busy port instead of guessing (`--auto-port` picks the next free one), prints the real ready URL only after both servers answer, and stops its children on Ctrl+C. Vite proxies same-origin `/api` to the API and first refuses any request that is not a same-origin request from the dev page, so `serve.py`'s Host/Origin checks stay meaningful. `python3 serve.py` without `--ui-dir` still serves only `web/index.html`.
+
+Portable copy for Claude.ai (React only, no network, imports measured runs): `node scripts/build_artifact.mjs` writes `artifacts/NeuronSteeringArtifact.tsx`; see `docs/CLAUDE_ARTIFACT.md` for how to paste it and what was not verified. Measured numbers for this Mac: `docs/PERFORMANCE.md`.
+
+Checks: `python3 -m unittest discover -s tests -v` (includes static serving, launcher and generated-data tests), `npm --prefix ui test` (formulas, run validation, contrast), `tests/ui_browser_check.py` and `tests/artifact_browser_check.py` (Playwright; Chrome and Firefox). Regenerate verified source references and model facts with `python3 scripts/build_lab_data.py`.
+
+## React lab: build summary and verification steps
+
+Summary of the "One Prompt. Different Paths." build, written from what was actually run on the author's M4 Pro (26 October 2026). Details: `docs/UI_DESIGN.md`, `docs/CLAUDE_ARTIFACT.md`, `docs/PERFORMANCE.md`, `CHANGELOG.md`.
+
+### What you get
+
+- **Local app** in `ui/`: React 19, TypeScript, Vite 8 and Tailwind 4, with shadcn components, beUI animated tabs and number, and Motion. Chapters run through an Embla carousel with one panel mounted at a time. It also has Ctrl/Cmd+K search, presentation mode, a light/dark/system switch and a reduce-motion switch. A three.js 3D layer view loads only when opened; the 2D map is complete without it.
+- **Launcher and server:** the four commands above work, including `scripts/dev.py` for the dev UI. `serve.py --ui-dir ui/dist` serves the build with route refresh, and the old page stays at `/` by default and at `/legacy` otherwise. The Host/Origin checks are kept; Vite refuses anything that is not a same-origin request from its own page before proxying `/api`.
+- **Portable artifact:** `artifacts/NeuronSteeringArtifact.tsx` imports only `react`. `node scripts/build_artifact.mjs` regenerates it from the same chapters and theme the app uses. A private Claude Artifact copy (an HTML build of the same component) was published by the author; Export JSON there also shows the JSON in a box to copy, because the viewer blocks downloads.
+- **GitHub Pages:** `.github/workflows/pages.yml` builds the lab as a static site (illustration plus JSON import, no API) and deploys it to https://rishabh135.github.io/neuron_abliteration/ , with the single-file page at `/standalone.html`. A repository admin must set **Settings > Pages > Source: GitHub Actions** once. A page refresh on a chapter route is served through `404.html`, so the browser console shows one expected 404 on refresh.
+- **Docs:** `docs/UI_DESIGN.md` (component and library decision tables, including Remotion's licence limits), `docs/CLAUDE_ARTIFACT.md` (how to paste the `.tsx` into Claude.ai and what to check), `docs/PERFORMANCE.md`, `CHANGELOG.md`, `THIRD_PARTY_LICENSES.md`, and 16 screenshots in `docs/screenshots/`.
+
+### Checked
+
+- **Tests:** 52 Python tests pass (1 skipped), 21 TypeScript tests pass, and the build and `tsc` are clean.
+- **Browser checks:** 116 checks passed in Chrome and in Firefox, and the generated artifact page passed in both. They covered every chapter, JSON import and export, a bad file keeping the current run, theme and reduced motion, keyboard use, widths 390, 768, 1024, 1440 and 1920, a 720 px stand-in for 200% zoom, and 44 px touch targets.
+- **Live runs:** the reference backend (BF16 on MPS) and the llama.cpp Q4_K_M backend each answered a real comparison through the Vite proxy and rendered in the UI.
+- The checks caught three bugs, now fixed: a CSP block on inlined fonts, focus lost after closing a dialog, and the carousel hijacking arrow keys inside sliders.
+
+### Measured on this Mac
+
+| | Reference backend (BF16, MPS) |
+| --- | --- |
+| Model load, first request | 23.4 s |
+| Decode rate | 8.5-9.2 steps/s for the 3-row batch |
+| Physical footprint | about 9.7 GB |
+
+The 8.5-9.2 steps/s is well below the earlier 15.7 recorded in the status section above; the gap was not investigated. The llama.cpp port took 13.1 s for a 96-token comparison. See `docs/PERFORMANCE.md`.
+
+### Not verified or not built
+
+- **Not run:** the real Claude.ai preview, Safari, a screen reader, real touch hardware, and any frame-rate measurement.
+- **Not built:** editable neuron doses (no backend path or validation exists), streaming (the server returns completed JSON), measured activation heatmaps, MP4 export, and a 3D view inside the portable artifact.
+
+### Next steps
+
+1. Run `python3 scripts/dev.py --backend illustration` and walk through the eight chapters.
+2. Paste `artifacts/NeuronSteeringArtifact.tsx` into a new Claude.ai React artifact, follow the checklist in `docs/CLAUDE_ARTIFACT.md`, and record what the preview shows.
+3. Enable GitHub Pages (Source: GitHub Actions) and open the deployed URL above.
+
 ## Reproduce on an Apple Silicon Mac
 
 Everything downloaded, cached, built or exported goes under `./cache`, and measured runs under `./runs`; both are git-ignored. `source env.sh` points every tool's cache and `TMPDIR` there, and every Python entry point does the same on import (`lab/core.py`).
@@ -99,7 +162,7 @@ $PY scripts/run_controls.py --preset sarcasm                # adjacent / random 
 URL=http://127.0.0.1:8794 BACKEND_LABEL=llama-Q8_0 scripts/run_battery.sh 128 sham presets
 python3 scripts/blind_sheet.py                              # runs/blind/sheet.csv; key kept in key.json
 python3 scripts/score_report.py                             # runs/report.json, runs/report.md
-$PY -m unittest discover -s tests -v                        # 32 tests
+$PY -m unittest discover -s tests -v                        # Python tests
 cache/tools-venv/bin/python tests/browser_check.py --run runs/<run_id>.json   # Playwright + Chrome
 ```
 
@@ -119,8 +182,11 @@ A negative dose subtracts a constant; it is not ablation. Because `W_down` is li
 
 | Path | Purpose |
 | --- | --- |
-| `web/index.html` | Offline five-stage page; JSON/bundle import and export |
-| `serve.py` | Standard-library server: `/api/compare`, `/api/status`, `/api/runs`; local origin only |
+| `web/index.html` | Original offline five-stage page; served at `/` by default and at `/legacy` with `--ui-dir` |
+| `ui/` | React lab (`src/lab` shared chapters and data, `src/app` local shell, `src/artifact` portable shell) |
+| `artifacts/` | Generated `NeuronSteeringArtifact.tsx` (committed) and `dist/` (ignored) |
+| `scripts/dev.py`, `build_artifact.mjs`, `build_lab_data.py`, `build_icons.mjs` | Launcher and generators |
+| `serve.py` | Standard-library server: `/api/compare`, `/api/status` (now also limits and capabilities), `/api/runs`; static `--ui-dir` with route fallback; local origin only |
 | `lab/reference.py` | Adapter around upstream `Runtime.steer_multi`: calibration, exact token ids, fork distributions, activation reads |
 | `lab/llama_backend.py` | Three fresh `llama-server` processes per comparison; top-10 first-token log-probabilities |
 | `lab/core.py` | Validation, presets, cache redirection |
