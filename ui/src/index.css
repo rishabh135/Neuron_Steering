@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./lab/theme.css";
+@source "./lab";
+@source "./app";
+@source "./components";
+
+html, body, #root { min-height: 100%; }
+body { margin: 0; background: var(--background); }

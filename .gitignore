@@ -5,3 +5,6 @@ cache/
 runs/
 calibration_stats/
 .DS_Store
+node_modules/
+ui/dist/
+artifacts/dist/

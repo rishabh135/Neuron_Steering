@@ -23,3 +23,5 @@ Exclude position 0 only when measuring the calibration median. Apply the additiv
 Never present an authored sample reply as a measured Qwen result. Never invent neuron activation heatmaps, probability changes, circuit connections, speeds, or dose-response curves. Keep the illustration badge until a measured local JSON run is imported. Animation timing must be identified as explanatory.
 
 Verify narrow, tablet, and desktop layouts; button boundaries; every stage; import failures; long outputs; keyboard use; and reduced motion. If the actual Claude preview cannot be tested, state that limitation. Return the complete artifact with no omitted helper files.
+
+> Superseded for the React rebuild by `docs/CLAUDE_ARTIFACT.md` and `docs/UI_DESIGN.md`; the five-stage brief above still describes `web/index.html`.

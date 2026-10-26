@@ -27,6 +27,9 @@ tempfile.tempdir = None  # re-read TMPDIR on next use
 MODEL_ID = "Qwen/Qwen3.5-4B"
 EXPLORER_SHA = "f79b2196e29aacbad89684938baac8d97b172fd1"
 LLAMA_SHA = "d854d98bae598388ecea1ed84396587e5edc326d"
+# Validated request limits; /api/status publishes them so the UI never hard-codes a second copy.
+LIMITS = {"prompt_chars": 4000, "intensity_min": 0.0, "intensity_max": 1.25, "max_new_min": 1, "max_new_max": 512,
+          "max_new_default": 160, "intensity_default": 0.5}
 
 
 def presets():
@@ -37,18 +40,18 @@ def validate_request(body):
     if not isinstance(body, dict):
         raise ValueError("Expected a JSON object.")
     prompt = body.get("prompt", "")
-    if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 4000:
+    if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > LIMITS["prompt_chars"]:
         raise ValueError("Prompt must contain 1 to 4,000 characters.")
     preset = body.get("preset", "sarcasm")
     if not isinstance(preset, str) or preset not in presets():
         raise ValueError("Unknown preset.")
-    intensity = body.get("intensity", 0.5)
+    intensity = body.get("intensity", LIMITS["intensity_default"])
     if isinstance(intensity, bool) or not isinstance(intensity, (int, float)):
         raise ValueError("Intensity must be a number.")
-    if not math.isfinite(intensity) or not 0 <= intensity <= 1.25:
+    if not math.isfinite(intensity) or not LIMITS["intensity_min"] <= intensity <= LIMITS["intensity_max"]:
         raise ValueError("Intensity must be between 0 and 1.25.")
-    max_new = body.get("max_new", 160)
-    if isinstance(max_new, bool) or not isinstance(max_new, int) or not 1 <= max_new <= 512:
+    max_new = body.get("max_new", LIMITS["max_new_default"])
+    if isinstance(max_new, bool) or not isinstance(max_new, int) or not LIMITS["max_new_min"] <= max_new <= LIMITS["max_new_max"]:
         raise ValueError("max_new must be an integer between 1 and 512.")
     request = {"prompt": prompt, "preset": preset, "intensity": float(intensity), "max_new": max_new}
     # Optional: run one neuron of a preset alone, with its signed dose exactly as listed in presets.json.
